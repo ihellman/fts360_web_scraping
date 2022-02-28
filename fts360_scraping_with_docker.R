@@ -12,7 +12,7 @@ library(wdman)
 # Turns out the docker method doesnt play nice with Raspberry Pi.  This was able to start the server but 
 # wont let it actually load past the login:  java -jar selenium-server-standalone-2.53.0.jar
 # File located from https://stackoverflow.com/questions/58895788/selenium-standalone-firefox-docker-on-raspberry-pi-not-working-how-to-use-rsele
-system("sudo docker run -d -p 4445:4444 selenium/standalone-chrome")
+system("docker run -d -p 4445:4444 selenium/standalone-chrome")
 Sys.sleep(5)
 
 
@@ -128,4 +128,4 @@ if (file.exists(dataFileLocation)){
 remDr$close()
 
 # kill docker container process (not sure if this is best or if it should just be left running)
-system("sudo docker kill $(sudo docker ps -q)")
+system("docker kill $(docker ps -q)")
