@@ -12,7 +12,7 @@ library(wdman)
 # Turns out the docker method doesnt play nice with Raspberry Pi.  This was able to start the server but 
 # wont let it actually load past the login:  java -jar selenium-server-standalone-2.53.0.jar
 # File located from https://stackoverflow.com/questions/58895788/selenium-standalone-firefox-docker-on-raspberry-pi-not-working-how-to-use-rsele
-system("docker run -d -p 4445:4444 selenium/standalone-chrome")
+system("sudo docker run -d -p 4445:4444 selenium/standalone-chrome")
 Sys.sleep(5)
 
 
@@ -81,7 +81,8 @@ scrapefts <- function(stationID, siteurl){
     data.frame() %>% 
     rename("voltage_V" = "X1", "h2Temp_C" = "X2", "stage_ft" = "X3", "LSU" = "X4") %>%
     add_column(datetimeUTC = dateTimeExtracted, .before = TRUE,
-               stationID = stationID) %>%
+               stationID = stationID,
+               telem_source = "Iridium") %>%
     mutate(datetimeUTC = lubridate::mdy_hms(datetimeUTC)) %>%
     mutate(datetimeUTC = as.character(datetimeUTC)) %>%
     relocate(stationID, .before = datetimeUTC)
@@ -98,7 +99,7 @@ new_data <- pmap_df(stationdf, scrapefts)
 ###  Merge with existing data or export new --------------------------------------------------------------------
 
 # Location of stored data (either existing or to be saved)
-dataFileLocation <- "/Users/ianhellman/Documents/Github/fts360_web_scraping/iridium_sed_event_data.csv"
+dataFileLocation <- "/home/enrep/ownCloud/ENREP_Shared/GOES_Telemetry/iridium_sed_event_data.csv"
 
 # Logic where: if data file does not exist, create one.  If it does exist then import it and
 # merge with newly downloaded data.
@@ -113,6 +114,8 @@ if (file.exists(dataFileLocation)){
     mutate(datetimeUTC = as.character(datetimeUTC),
            stage_ft = as.character(stage_ft)) %>%
     distinct()
+  
+  write.csv(merged_data, dataFileLocation, row.names = FALSE)
     
 } else {
   write.csv(new_data, dataFileLocation, row.names = FALSE)
@@ -125,4 +128,4 @@ if (file.exists(dataFileLocation)){
 remDr$close()
 
 # kill docker container process (not sure if this is best or if it should just be left running)
-system("docker kill $(docker ps -q)")
+system("sudo docker kill $(sudo docker ps -q)")
