@@ -8,11 +8,22 @@ library(tidyverse)
 library(RSelenium)
 library(wdman)
 
-# Start a docker container with chrome.  Docker makes this whole process more platform agnostic.
-# Turns out the docker method doesnt play nice with Raspberry Pi.  This was able to start the server but 
-# wont let it actually load past the login:  java -jar selenium-server-standalone-2.53.0.jar
-# File located from https://stackoverflow.com/questions/58895788/selenium-standalone-firefox-docker-on-raspberry-pi-not-working-how-to-use-rsele
-system("docker run -d -p 4445:4444 selenium/standalone-chrome")
+# Start a docker container with chrome. 
+
+# Check if the selenium/standalone-chrome docker image named "fts_scrape" is running. This script 
+# was having some browser error issues and if it doesnt finish, the container will be left 
+# running and cause it to not run again.
+fts_scrape_running <- system("docker ps", intern = TRUE) %>% str_detect("fts_scrape") %>% any()
+
+# If fts_scrape container is running, kill it.  If not, start it.
+if (fts_scrape_running == TRUE){
+  system("docker kill fts_scrape")
+  system("docker rm fts_scrape") # remove docker.  This prevents lots of dead docker instances from piling up.
+  system("docker run --name fts_scrape -d -p 4445:4444 --shm-size=2g selenium/standalone-chrome")
+} else {
+  system("docker run --name fts_scrape -d -p 4445:4444 --shm-size=2g selenium/standalone-chrome")
+}
+
 Sys.sleep(5)
 
 
@@ -34,14 +45,14 @@ remDr <- RSelenium::remoteDriver(remoteServerAddr = "localhost",
                                  browserName = "chrome")
 
 # some VERY secure entry of usernames
-username <- "uienrep@gmail.com"
-pass <- "ftsenrep"
+username <- "user@domain.com"
+pass <- "password"
 
 # Go to login page
 remDr$open()
 Sys.sleep(5)
 remDr$navigate("https://360.ftsinc.com/login")
-Sys.sleep(5)
+Sys.sleep(10)
 
 # Enter login info and press login button
 # Email
@@ -57,7 +68,7 @@ scrapefts <- function(stationID, siteurl){
   
   #navgiate to page.
   remDr$navigate(siteurl)
-  Sys.sleep(5)
+  Sys.sleep(10)
   
   # find table and download data to readable format
   tableElem <- remDr$findElement(using = "xpath", '//*[contains(concat( " ", @class, " " ), concat( " ", "grid-page", " " ))]')
@@ -84,7 +95,6 @@ scrapefts <- function(stationID, siteurl){
                stationID = stationID,
                telem_source = "Iridium") %>%
     mutate(datetimeUTC = lubridate::mdy_hms(datetimeUTC)) %>%
-    mutate(datetimeUTC = as.character(datetimeUTC)) %>%
     relocate(stationID, .before = datetimeUTC)
   print(dat)
   return(dat)
@@ -92,8 +102,6 @@ scrapefts <- function(stationID, siteurl){
 
 # scrape data for all stations listed in station dataframe.
 new_data <- pmap_df(stationdf, scrapefts)
-
-
 
 
 ###  Merge with existing data or export new --------------------------------------------------------------------
@@ -124,8 +132,9 @@ if (file.exists(dataFileLocation)){
 
 ### Clean up --------------------------------------------------------------------------------------------------
 
-#close browser sesssions.
+# close selenium browser
 remDr$close()
 
-# kill docker container process (not sure if this is best or if it should just be left running)
-system("docker kill $(docker ps -q)")
+# kill docker container process
+system("docker kill fts_scrape")
+system("docker rm fts_scrape")
